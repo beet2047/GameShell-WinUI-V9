@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "GameShell WinUI V9 (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "GameShell WinUI V9 (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
