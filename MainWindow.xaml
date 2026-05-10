@@ -40,6 +40,9 @@
                         HorizontalAlignment="Stretch" Click="BtnDeleteGame_Click"/>
                 <Button x:Name="BtnGameProps" Content="⚙ Propiedades"
                         HorizontalAlignment="Stretch" Click="BtnGameProps_Click"/>
+                <Button x:Name="BtnManualTimer" Content="⏱ Cronómetro manual"
+                        HorizontalAlignment="Stretch" Visibility="Collapsed"
+                        Click="BtnManualTimer_Click"/>
             </StackPanel>
 
             <AutoSuggestBox Grid.Row="2" x:Name="SearchBox"
@@ -107,10 +110,12 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
+                <!-- Portada — Uniform sin recorte -->
                 <Border Grid.Column="0" CornerRadius="8" Margin="0,0,12,0"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         Height="120">
-                    <Image x:Name="GameCover" Stretch="UniformToFill"/>
+                    <Image x:Name="GameCover" Stretch="Uniform"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
 
                 <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
@@ -120,6 +125,8 @@
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
                         <Button x:Name="BtnLaunch" Content="▶ Lanzar"
                                 IsEnabled="False" Click="BtnLaunch_Click"/>
+                        <Button x:Name="BtnStopTimer" Content="⏹ Detener cronómetro"
+                                Visibility="Collapsed" Click="BtnStopTimer_Click"/>
                         <TextBlock x:Name="LblStatus" VerticalAlignment="Center"
                                    Opacity="0.7" FontSize="12"/>
                     </StackPanel>
@@ -174,23 +181,19 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <!-- Barras -->
                         <Grid Grid.Row="0" x:Name="ActivityGrid">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Eje Y -->
                             <StackPanel Grid.Column="0" VerticalAlignment="Stretch"
                                         Margin="0,0,8,0" Width="40">
                                 <TextBlock x:Name="LblYMax" Text="0m" FontSize="10" Opacity="0.6" VerticalAlignment="Top"/>
-                                <TextBlock x:Name="LblYMid" Text="0m" FontSize="10" Opacity="0.6"
-                                           VerticalAlignment="Center"/>
+                                <TextBlock x:Name="LblYMid" Text="0m" FontSize="10" Opacity="0.6" VerticalAlignment="Center"/>
                                 <TextBlock Text="0m" FontSize="10" Opacity="0.6" VerticalAlignment="Bottom"/>
                             </StackPanel>
 
-                            <!-- Barras de días -->
                             <Grid Grid.Column="1" x:Name="BarContainer">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -202,38 +205,30 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Lun -->
                                 <Border Grid.Column="0" x:Name="BarLun" VerticalAlignment="Bottom"
                                         CornerRadius="4,4,0,0" Margin="4,0"
                                         Background="{ThemeResource SystemAccentColor}" Height="0"/>
-                                <!-- Mar -->
                                 <Border Grid.Column="1" x:Name="BarMar" VerticalAlignment="Bottom"
                                         CornerRadius="4,4,0,0" Margin="4,0"
                                         Background="{ThemeResource SystemAccentColor}" Height="0"/>
-                                <!-- Mié -->
                                 <Border Grid.Column="2" x:Name="BarMie" VerticalAlignment="Bottom"
                                         CornerRadius="4,4,0,0" Margin="4,0"
                                         Background="{ThemeResource SystemAccentColor}" Height="0"/>
-                                <!-- Jue -->
                                 <Border Grid.Column="3" x:Name="BarJue" VerticalAlignment="Bottom"
                                         CornerRadius="4,4,0,0" Margin="4,0"
                                         Background="{ThemeResource SystemAccentColor}" Height="0"/>
-                                <!-- Vie -->
                                 <Border Grid.Column="4" x:Name="BarVie" VerticalAlignment="Bottom"
                                         CornerRadius="4,4,0,0" Margin="4,0"
                                         Background="{ThemeResource SystemAccentColor}" Height="0"/>
-                                <!-- Sáb -->
                                 <Border Grid.Column="5" x:Name="BarSab" VerticalAlignment="Bottom"
                                         CornerRadius="4,4,0,0" Margin="4,0"
                                         Background="{ThemeResource SystemAccentColor}" Height="0"/>
-                                <!-- Dom -->
                                 <Border Grid.Column="6" x:Name="BarDom" VerticalAlignment="Bottom"
                                         CornerRadius="4,4,0,0" Margin="4,0"
                                         Background="{ThemeResource SystemAccentColor}" Height="0"/>
                             </Grid>
                         </Grid>
 
-                        <!-- Eje X - días -->
                         <Grid Grid.Row="1" Margin="48,4,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>

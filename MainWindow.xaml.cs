@@ -24,6 +24,7 @@ namespace GameShell_WinUI_V9
         public string LastPlayed { get; set; } = string.Empty;
         public bool RunAsAdmin { get; set; }
         public bool IsBat { get; set; }
+        public bool ManualTimer { get; set; }
     }
 
     public class SessionItem
@@ -42,6 +43,8 @@ namespace GameShell_WinUI_V9
         private Process? _activeProcess;
         private DateTime _sessionStart;
         private DispatcherTimer _sysTimer = null!;
+        private bool _manualTimerRunning = false;
+        private bool _sessionActive = false;
 
         public MainWindow()
         {
@@ -62,12 +65,15 @@ namespace GameShell_WinUI_V9
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT, path TEXT, cover TEXT,
                     total_seconds INTEGER DEFAULT 0,
-                    last_played TEXT, run_as_admin INTEGER DEFAULT 0
+                    last_played TEXT, run_as_admin INTEGER DEFAULT 0,
+                    manual_timer INTEGER DEFAULT 0
                 );
                 CREATE TABLE IF NOT EXISTS sessions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     game_id INTEGER, started TEXT, duration_seconds INTEGER
                 );", con).ExecuteNonQuery();
+            try { new SqliteCommand("ALTER TABLE games ADD COLUMN manual_timer INTEGER DEFAULT 0", con).ExecuteNonQuery(); }
+            catch { }
         }
 
         void LoadGames()
@@ -75,7 +81,7 @@ namespace GameShell_WinUI_V9
             _allGames.Clear();
             using var con = new SqliteConnection($"Data Source={DB}");
             con.Open();
-            using var r = new SqliteCommand("SELECT id,name,path,cover,total_seconds,last_played,run_as_admin FROM games ORDER BY name", con).ExecuteReader();
+            using var r = new SqliteCommand("SELECT id,name,path,cover,total_seconds,last_played,run_as_admin,manual_timer FROM games ORDER BY name", con).ExecuteReader();
             while (r.Read())
                 _allGames.Add(new GameItem
                 {
@@ -86,7 +92,8 @@ namespace GameShell_WinUI_V9
                     TotalSeconds = r.GetInt32(4),
                     LastPlayed = r.IsDBNull(5) ? string.Empty : r.GetString(5),
                     RunAsAdmin = r.GetInt32(6) == 1,
-                    IsBat = r.GetString(2).EndsWith(".bat", StringComparison.OrdinalIgnoreCase)
+                    IsBat = r.GetString(2).EndsWith(".bat", StringComparison.OrdinalIgnoreCase),
+                    ManualTimer = r.GetInt32(7) == 1
                 });
             FilterGames(SearchBox.Text);
         }
@@ -126,7 +133,6 @@ namespace GameShell_WinUI_V9
             var mins = new int[7];
             var today = DateTime.Today;
             int dayOfWeek = (int)today.DayOfWeek;
-            // Ajustar para que semana empiece en Lunes
             int offset = dayOfWeek == 0 ? 6 : dayOfWeek - 1;
             var weekStart = today.AddDays(-offset);
 
@@ -154,7 +160,11 @@ namespace GameShell_WinUI_V9
             LblLastPlayed.Text = !string.IsNullOrEmpty(g.LastPlayed)
                 ? $"Última sesión: {DateTime.Parse(g.LastPlayed):dd/MM/yyyy HH:mm}"
                 : "Sin sesiones aún";
-            BtnLaunch.IsEnabled = _activeProcess == null;
+            BtnLaunch.IsEnabled = _activeProcess == null && !_manualTimerRunning;
+
+            BtnManualTimer.Visibility = g.IsBat ? Visibility.Visible : Visibility.Collapsed;
+            BtnStopTimer.Visibility = (g.IsBat && g.ManualTimer && _manualTimerRunning)
+                ? Visibility.Visible : Visibility.Collapsed;
 
             if (!string.IsNullOrEmpty(g.CoverPath) && File.Exists(g.CoverPath))
                 GameCover.Source = new BitmapImage(new Uri(g.CoverPath));
@@ -186,8 +196,6 @@ namespace GameShell_WinUI_V9
         {
             var mins = GetWeekActivity(gid);
             int maxMins = mins.Max() == 0 ? 1 : mins.Max();
-
-            // Altura máxima de barra en píxeles
             double maxH = BarContainer.ActualHeight > 0 ? BarContainer.ActualHeight : 200;
 
             var bars = new[] { BarLun, BarMar, BarMie, BarJue, BarVie, BarSab, BarDom };
@@ -198,7 +206,6 @@ namespace GameShell_WinUI_V9
             LblYMid.Text = FmtMins(maxMins / 2);
         }
 
-        // ── Eventos UI ────────────────────────────────────────────────────────
         void GameListView_SelectionChanged(object s, SelectionChangedEventArgs e)
         {
             if (GameListView.SelectedItem is GameItem g) SelectGame(g);
@@ -257,6 +264,8 @@ namespace GameShell_WinUI_V9
             LblGameTime.Text = "Tiempo total: —";
             LblLastPlayed.Text = string.Empty;
             BtnLaunch.IsEnabled = false;
+            BtnStopTimer.Visibility = Visibility.Collapsed;
+            BtnManualTimer.Visibility = Visibility.Collapsed;
             GameCover.Source = null;
             _sessions.Clear();
             LoadGames();
@@ -304,9 +313,34 @@ namespace GameShell_WinUI_V9
             if (updated != null) SelectGame(updated);
         }
 
+        async void BtnManualTimer_Click(object s, RoutedEventArgs e)
+        {
+            if (_selectedGame == null || !_selectedGame.IsBat) return;
+
+            bool isActive = _selectedGame.ManualTimer;
+            var dlg = new ContentDialog
+            {
+                Title = "Cronómetro manual",
+                Content = "Esta función evitará que el cronómetro de sesión se detenga si un lanzador .bat para un juego se cierra solo después de lanzar el juego principal. Esto no será necesario para juegos .exe.\n\n" +
+                          (isActive ? "¿Desactivar?" : "¿Activar?"),
+                PrimaryButtonText = isActive ? "Desactivar" : "Activar",
+                CloseButtonText = "Cancelar",
+                XamlRoot = Content.XamlRoot
+            };
+            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+
+            int newVal = isActive ? 0 : 1;
+            using var con = new SqliteConnection($"Data Source={DB}");
+            con.Open();
+            new SqliteCommand($"UPDATE games SET manual_timer={newVal} WHERE id={_selectedGame.Id}", con).ExecuteNonQuery();
+            LoadGames();
+            var updated = _allGames.FirstOrDefault(g => g.Id == _selectedGame.Id);
+            if (updated != null) SelectGame(updated);
+        }
+
         void BtnLaunch_Click(object s, RoutedEventArgs e)
         {
-            if (_selectedGame == null || _activeProcess != null) return;
+            if (_selectedGame == null || _activeProcess != null || _manualTimerRunning) return;
             try
             {
                 var psi = new ProcessStartInfo(_selectedGame.Path)
@@ -318,14 +352,44 @@ namespace GameShell_WinUI_V9
                 if (_selectedGame.IsBat) { psi.FileName = "cmd.exe"; psi.Arguments = $"/c \"{_selectedGame.Path}\""; }
                 _activeProcess = Process.Start(psi)!;
                 _sessionStart = DateTime.Now;
+                _sessionActive = true;
                 BtnLaunch.IsEnabled = false;
                 LblStatus.Text = $"▶ {_selectedGame.Name} en ejecución";
-                Task.Run(() => WatchProcess(_selectedGame));
+
+                if (_selectedGame.ManualTimer)
+                {
+                    _manualTimerRunning = true;
+                    _activeProcess = null;
+                    BtnStopTimer.Visibility = Visibility.Visible;
+                    BtnLaunch.IsEnabled = false;
+                }
+                else
+                {
+                    Task.Run(() => WatchProcess(_selectedGame));
+                }
             }
             catch (Exception ex)
             {
                 LblStatus.Text = $"Error: {ex.Message}";
+                _sessionActive = false;
             }
+        }
+
+        void BtnStopTimer_Click(object s, RoutedEventArgs e)
+        {
+            if (!_manualTimerRunning || !_sessionActive || _selectedGame == null) return;
+
+            int dur = (int)(DateTime.Now - _sessionStart).TotalSeconds;
+            SaveSession(_selectedGame.Id, _sessionStart, dur);
+
+            _manualTimerRunning = false;
+            _sessionActive = false;
+            BtnStopTimer.Visibility = Visibility.Collapsed;
+            BtnLaunch.IsEnabled = true;
+            LblStatus.Text = "Sesión guardada.";
+            LoadGames();
+            var updated = _allGames.FirstOrDefault(x => x.Id == _selectedGame.Id);
+            if (updated != null) SelectGame(updated);
         }
 
         void WatchProcess(GameItem g)
@@ -334,6 +398,7 @@ namespace GameShell_WinUI_V9
             int dur = (int)(DateTime.Now - _sessionStart).TotalSeconds;
             SaveSession(g.Id, _sessionStart, dur);
             _activeProcess = null;
+            _sessionActive = false;
             DispatcherQueue.TryEnqueue(() =>
             {
                 BtnLaunch.IsEnabled = true;
