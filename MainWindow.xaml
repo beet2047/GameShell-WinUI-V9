@@ -14,6 +14,14 @@
     </Window.SystemBackdrop>
 
     <Grid>
+        <Grid.Resources>
+            <Style x:Key="RedButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+                <Setter Property="Background" Value="#C42B1C"/>
+                <Setter Property="BorderBrush" Value="#C42B1C"/>
+                <Setter Property="CornerRadius" Value="4"/>
+            </Style>
+        </Grid.Resources>
+
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="240"/>
             <ColumnDefinition Width="*"/>
@@ -40,9 +48,6 @@
                         HorizontalAlignment="Stretch" Click="BtnDeleteGame_Click"/>
                 <Button x:Name="BtnGameProps" Content="⚙ Propiedades"
                         HorizontalAlignment="Stretch" Click="BtnGameProps_Click"/>
-                <Button x:Name="BtnManualTimer" Content="⏱ Cronómetro manual"
-                        HorizontalAlignment="Stretch" Visibility="Collapsed"
-                        Click="BtnManualTimer_Click"/>
             </StackPanel>
 
             <AutoSuggestBox Grid.Row="2" x:Name="SearchBox"
@@ -110,7 +115,6 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Portada — Uniform sin recorte -->
                 <Border Grid.Column="0" CornerRadius="8" Margin="0,0,12,0"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         Height="120">
@@ -124,9 +128,14 @@
                     <TextBlock x:Name="LblLastPlayed" Text="Última sesión: —" Opacity="0.5" FontSize="12"/>
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
                         <Button x:Name="BtnLaunch" Content="▶ Lanzar"
+                                Style="{StaticResource AccentButtonStyle}"
                                 IsEnabled="False" Click="BtnLaunch_Click"/>
-                        <Button x:Name="BtnStopTimer" Content="⏹ Detener cronómetro"
-                                Visibility="Collapsed" Click="BtnStopTimer_Click"/>
+                        <Button x:Name="BtnStopTimer" Content="■ Detener cronómetro"
+                             IsEnabled="False" CornerRadius="4" Click="BtnStopTimer_Click">
+                            <ToolTipService.ToolTip>
+                                <ToolTip Content="Solo archivos .bat"/>
+                            </ToolTipService.ToolTip>
+                        </Button>
                         <TextBlock x:Name="LblStatus" VerticalAlignment="Center"
                                    Opacity="0.7" FontSize="12"/>
                     </StackPanel>

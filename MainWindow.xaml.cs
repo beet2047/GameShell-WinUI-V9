@@ -46,6 +46,10 @@ namespace GameShell_WinUI_V9
         private bool _manualTimerRunning = false;
         private bool _sessionActive = false;
 
+        // Estilos para BtnStopTimer — se cachean tras el primer uso
+        private Style? _redButtonStyle;
+        private Style? _defaultButtonStyle;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -54,6 +58,38 @@ namespace GameShell_WinUI_V9
             GameListView.ItemsSource = _filteredGames;
             SessionListView.ItemsSource = _sessions;
             StartSysMonitor();
+
+            // Cachear estilos una vez que el árbol visual está listo
+            _defaultButtonStyle = BtnStopTimer.Style;
+        }
+
+        // Aplica el estilo rojo o gris al botón Detener y gestiona el tooltip
+        void SetStopButtonActive(bool active, bool isBat)
+        {
+            if (active)
+            {
+                _redButtonStyle ??= (Style)((Grid)Content).Resources["RedButtonStyle"];
+                BtnStopTimer.Style = _redButtonStyle;
+                BtnStopTimer.IsEnabled = true;
+                ToolTipService.SetToolTip(BtnStopTimer, null);
+            }
+            else
+            {
+                BtnStopTimer.Style = _defaultButtonStyle;
+                BtnStopTimer.IsEnabled = false;
+                if (!isBat)
+                {
+                    ToolTipService.SetToolTip(BtnStopTimer, new ToolTip
+                    {
+                        Content = "Solo archivos .bat",
+                        Placement = Microsoft.UI.Xaml.Controls.Primitives.PlacementMode.Bottom
+                    });
+                }
+                else
+                {
+                    ToolTipService.SetToolTip(BtnStopTimer, null);
+                }
+            }
         }
 
         void InitDb()
@@ -162,9 +198,9 @@ namespace GameShell_WinUI_V9
                 : "Sin sesiones aún";
             BtnLaunch.IsEnabled = _activeProcess == null && !_manualTimerRunning;
 
-            BtnManualTimer.Visibility = g.IsBat ? Visibility.Visible : Visibility.Collapsed;
-            BtnStopTimer.Visibility = (g.IsBat && g.ManualTimer && _manualTimerRunning)
-                ? Visibility.Visible : Visibility.Collapsed;
+            // Rojo y clickeable solo si es .bat con cronómetro activo, gris en cualquier otro caso
+            bool stopActive = g.IsBat && _manualTimerRunning && _sessionActive;
+            SetStopButtonActive(stopActive, g.IsBat);
 
             if (!string.IsNullOrEmpty(g.CoverPath) && File.Exists(g.CoverPath))
                 GameCover.Source = new BitmapImage(new Uri(g.CoverPath));
@@ -264,8 +300,7 @@ namespace GameShell_WinUI_V9
             LblGameTime.Text = "Tiempo total: —";
             LblLastPlayed.Text = string.Empty;
             BtnLaunch.IsEnabled = false;
-            BtnStopTimer.Visibility = Visibility.Collapsed;
-            BtnManualTimer.Visibility = Visibility.Collapsed;
+            SetStopButtonActive(false, false);
             GameCover.Source = null;
             _sessions.Clear();
             LoadGames();
@@ -313,31 +348,6 @@ namespace GameShell_WinUI_V9
             if (updated != null) SelectGame(updated);
         }
 
-        async void BtnManualTimer_Click(object s, RoutedEventArgs e)
-        {
-            if (_selectedGame == null || !_selectedGame.IsBat) return;
-
-            bool isActive = _selectedGame.ManualTimer;
-            var dlg = new ContentDialog
-            {
-                Title = "Cronómetro manual",
-                Content = "Esta función evitará que el cronómetro de sesión se detenga si un lanzador .bat para un juego se cierra solo después de lanzar el juego principal. Esto no será necesario para juegos .exe.\n\n" +
-                          (isActive ? "¿Desactivar?" : "¿Activar?"),
-                PrimaryButtonText = isActive ? "Desactivar" : "Activar",
-                CloseButtonText = "Cancelar",
-                XamlRoot = Content.XamlRoot
-            };
-            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
-
-            int newVal = isActive ? 0 : 1;
-            using var con = new SqliteConnection($"Data Source={DB}");
-            con.Open();
-            new SqliteCommand($"UPDATE games SET manual_timer={newVal} WHERE id={_selectedGame.Id}", con).ExecuteNonQuery();
-            LoadGames();
-            var updated = _allGames.FirstOrDefault(g => g.Id == _selectedGame.Id);
-            if (updated != null) SelectGame(updated);
-        }
-
         void BtnLaunch_Click(object s, RoutedEventArgs e)
         {
             if (_selectedGame == null || _activeProcess != null || _manualTimerRunning) return;
@@ -349,22 +359,31 @@ namespace GameShell_WinUI_V9
                     UseShellExecute = true,
                     Verb = _selectedGame.RunAsAdmin ? "runas" : ""
                 };
-                if (_selectedGame.IsBat) { psi.FileName = "cmd.exe"; psi.Arguments = $"/c \"{_selectedGame.Path}\""; }
-                _activeProcess = Process.Start(psi)!;
+
+                if (_selectedGame.IsBat)
+                {
+                    psi.FileName = "cmd.exe";
+                    psi.Arguments = $"/c \"{_selectedGame.Path}\"";
+                }
+
+                var proc = Process.Start(psi)!;
                 _sessionStart = DateTime.Now;
                 _sessionActive = true;
                 BtnLaunch.IsEnabled = false;
                 LblStatus.Text = $"▶ {_selectedGame.Name} en ejecución";
 
-                if (_selectedGame.ManualTimer)
+                if (_selectedGame.IsBat)
                 {
-                    _manualTimerRunning = true;
+                    // Fire and forget: ignorar cuando el .bat se cierre
+                    // El cronómetro sigue hasta que el usuario presione Detener
                     _activeProcess = null;
-                    BtnStopTimer.Visibility = Visibility.Visible;
-                    BtnLaunch.IsEnabled = false;
+                    _manualTimerRunning = true;
+                    SetStopButtonActive(true, true);
                 }
                 else
                 {
+                    // .exe: monitorear el proceso, se detiene automáticamente al cerrar
+                    _activeProcess = proc;
                     Task.Run(() => WatchProcess(_selectedGame));
                 }
             }
@@ -377,6 +396,7 @@ namespace GameShell_WinUI_V9
 
         void BtnStopTimer_Click(object s, RoutedEventArgs e)
         {
+            // Guardia extra: solo actúa si hay cronómetro manual corriendo
             if (!_manualTimerRunning || !_sessionActive || _selectedGame == null) return;
 
             int dur = (int)(DateTime.Now - _sessionStart).TotalSeconds;
@@ -384,7 +404,7 @@ namespace GameShell_WinUI_V9
 
             _manualTimerRunning = false;
             _sessionActive = false;
-            BtnStopTimer.Visibility = Visibility.Collapsed;
+            SetStopButtonActive(false, _selectedGame.IsBat);
             BtnLaunch.IsEnabled = true;
             LblStatus.Text = "Sesión guardada.";
             LoadGames();
