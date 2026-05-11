@@ -1,4 +1,6 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.UI;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -8,8 +10,10 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Windows.Storage.Pickers;
+using Windows.UI;
 using WinRT.Interop;
 
 namespace GameShell_WinUI_V9
@@ -46,13 +50,14 @@ namespace GameShell_WinUI_V9
         private bool _manualTimerRunning = false;
         private bool _sessionActive = false;
 
-        // Estilos para BtnStopTimer — se cachean tras el primer uso
-        private Style? _redButtonStyle;
+        // Estilos para BtnStopTimer
+        private Style? _stopTimerActiveStyle;
         private Style? _defaultButtonStyle;
 
         public MainWindow()
         {
             InitializeComponent();
+            ApplyDarkTitleBar();
             InitDb();
             LoadGames();
             GameListView.ItemsSource = _filteredGames;
@@ -63,33 +68,63 @@ namespace GameShell_WinUI_V9
             _defaultButtonStyle = BtnStopTimer.Style;
         }
 
-        // Aplica el estilo rojo o gris al botón Detener y gestiona el tooltip
+        // Fuerza la titlebar a modo oscuro (Mica dark)
+        private void ApplyDarkTitleBar()
+        {
+            var hWnd = WindowNative.GetWindowHandle(this);
+            var windowId = Win32Interop.GetWindowIdFromWindow(hWnd);
+            var appWindow = AppWindow.GetFromWindowId(windowId);
+
+            if (appWindow.TitleBar != null)
+            {
+                appWindow.TitleBar.ExtendsContentIntoTitleBar = false;
+
+                // Forzar colores oscuros en la titlebar nativa
+                appWindow.TitleBar.BackgroundColor = Color.FromArgb(255, 32, 32, 32);
+                appWindow.TitleBar.ForegroundColor = Color.FromArgb(255, 255, 255, 255);
+                appWindow.TitleBar.InactiveBackgroundColor = Color.FromArgb(255, 32, 32, 32);
+                appWindow.TitleBar.InactiveForegroundColor = Color.FromArgb(255, 160, 160, 160);
+                appWindow.TitleBar.ButtonBackgroundColor = Color.FromArgb(255, 32, 32, 32);
+                appWindow.TitleBar.ButtonForegroundColor = Color.FromArgb(255, 255, 255, 255);
+                appWindow.TitleBar.ButtonHoverBackgroundColor = Color.FromArgb(255, 55, 55, 55);
+                appWindow.TitleBar.ButtonHoverForegroundColor = Color.FromArgb(255, 255, 255, 255);
+                appWindow.TitleBar.ButtonPressedBackgroundColor = Color.FromArgb(255, 70, 70, 70);
+                appWindow.TitleBar.ButtonPressedForegroundColor = Color.FromArgb(255, 255, 255, 255);
+                appWindow.TitleBar.ButtonInactiveBackgroundColor = Color.FromArgb(255, 32, 32, 32);
+                appWindow.TitleBar.ButtonInactiveForegroundColor = Color.FromArgb(255, 160, 160, 160);
+            }
+
+            // DWM: forzar modo oscuro en la barra de título vía API Win32
+            SetDarkMode(hWnd, true);
+        }
+
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+
+        private static void SetDarkMode(IntPtr hwnd, bool enabled)
+        {
+            int value = enabled ? 1 : 0;
+            // DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            DwmSetWindowAttribute(hwnd, 20, ref value, sizeof(int));
+        }
+
+        // Aplica el estilo activo (gris claro clickeable) o inactivo (gris oscuro deshabilitado) al botón Detener
         void SetStopButtonActive(bool active, bool isBat)
         {
             if (active)
             {
-                _redButtonStyle ??= (Style)((Grid)Content).Resources["RedButtonStyle"];
-                BtnStopTimer.Style = _redButtonStyle;
+                _stopTimerActiveStyle ??= (Style)((Grid)Content).Resources["StopTimerActiveStyle"];
+                BtnStopTimer.Style = _stopTimerActiveStyle;
                 BtnStopTimer.IsEnabled = true;
-                ToolTipService.SetToolTip(BtnStopTimer, null);
             }
             else
             {
                 BtnStopTimer.Style = _defaultButtonStyle;
                 BtnStopTimer.IsEnabled = false;
-                if (!isBat)
-                {
-                    ToolTipService.SetToolTip(BtnStopTimer, new ToolTip
-                    {
-                        Content = "Solo archivos .bat",
-                        Placement = Microsoft.UI.Xaml.Controls.Primitives.PlacementMode.Bottom
-                    });
-                }
-                else
-                {
-                    ToolTipService.SetToolTip(BtnStopTimer, null);
-                }
             }
+
+            // Tooltips eliminados por completo
+            ToolTipService.SetToolTip(BtnStopTimer, null);
         }
 
         void InitDb()
@@ -198,7 +233,6 @@ namespace GameShell_WinUI_V9
                 : "Sin sesiones aún";
             BtnLaunch.IsEnabled = _activeProcess == null && !_manualTimerRunning;
 
-            // Rojo y clickeable solo si es .bat con cronómetro activo, gris en cualquier otro caso
             bool stopActive = g.IsBat && _manualTimerRunning && _sessionActive;
             SetStopButtonActive(stopActive, g.IsBat);
 
@@ -374,15 +408,12 @@ namespace GameShell_WinUI_V9
 
                 if (_selectedGame.IsBat)
                 {
-                    // Fire and forget: ignorar cuando el .bat se cierre
-                    // El cronómetro sigue hasta que el usuario presione Detener
                     _activeProcess = null;
                     _manualTimerRunning = true;
                     SetStopButtonActive(true, true);
                 }
                 else
                 {
-                    // .exe: monitorear el proceso, se detiene automáticamente al cerrar
                     _activeProcess = proc;
                     Task.Run(() => WatchProcess(_selectedGame));
                 }
@@ -396,7 +427,6 @@ namespace GameShell_WinUI_V9
 
         void BtnStopTimer_Click(object s, RoutedEventArgs e)
         {
-            // Guardia extra: solo actúa si hay cronómetro manual corriendo
             if (!_manualTimerRunning || !_sessionActive || _selectedGame == null) return;
 
             int dur = (int)(DateTime.Now - _sessionStart).TotalSeconds;

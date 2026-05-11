@@ -15,10 +15,70 @@
 
     <Grid>
         <Grid.Resources>
-            <Style x:Key="RedButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
-                <Setter Property="Background" Value="#C42B1C"/>
-                <Setter Property="BorderBrush" Value="#C42B1C"/>
+            <!-- Estilo para BtnStopTimer cuando está activo: gris claro con hover en color de acento -->
+            <Style x:Key="StopTimerActiveStyle" TargetType="Button">
+                <Setter Property="Background" Value="#3A3A3A"/>
+                <Setter Property="Foreground" Value="#FFFFFF"/>
+                <Setter Property="BorderBrush" Value="#3A3A3A"/>
                 <Setter Property="CornerRadius" Value="4"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Grid x:Name="RootGrid">
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal">
+                                            <Storyboard>
+                                                <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Background" Storyboard.TargetProperty="Background">
+                                                    <DiscreteObjectKeyFrame KeyTime="0" Value="#3A3A3A"/>
+                                                </ObjectAnimationUsingKeyFrames>
+                                            </Storyboard>
+                                        </VisualState>
+                                        <VisualState x:Name="PointerOver">
+                                            <Storyboard>
+                                                <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Background" Storyboard.TargetProperty="Background">
+                                                    <DiscreteObjectKeyFrame KeyTime="0" Value="#FF4343"/>
+                                                </ObjectAnimationUsingKeyFrames>
+                                                <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ContentPresenter" Storyboard.TargetProperty="Foreground">
+                                                    <DiscreteObjectKeyFrame KeyTime="0" Value="#FFFFFF"/>
+                                                </ObjectAnimationUsingKeyFrames>
+                                            </Storyboard>
+                                        </VisualState>
+                                        <VisualState x:Name="Pressed">
+                                            <Storyboard>
+                                                <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Background" Storyboard.TargetProperty="Background">
+                                                    <DiscreteObjectKeyFrame KeyTime="0" Value="#CC3030"/>
+                                                </ObjectAnimationUsingKeyFrames>
+                                            </Storyboard>
+                                        </VisualState>
+                                        <VisualState x:Name="Disabled">
+                                            <Storyboard>
+                                                <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Background" Storyboard.TargetProperty="Background">
+                                                    <DiscreteObjectKeyFrame KeyTime="0" Value="#2A2A2A"/>
+                                                </ObjectAnimationUsingKeyFrames>
+                                                <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ContentPresenter" Storyboard.TargetProperty="Foreground">
+                                                    <DiscreteObjectKeyFrame KeyTime="0" Value="#666666"/>
+                                                </ObjectAnimationUsingKeyFrames>
+                                            </Storyboard>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                                <Border x:Name="Background"
+                                        Background="#3A3A3A"
+                                        CornerRadius="4"
+                                        BorderBrush="#3A3A3A"
+                                        BorderThickness="1"
+                                        Padding="11,5">
+                                    <ContentPresenter x:Name="ContentPresenter"
+                                                      Content="{TemplateBinding Content}"
+                                                      Foreground="#FFFFFF"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
         </Grid.Resources>
 
@@ -36,9 +96,16 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                <TextBlock Text="🎮 GameShell" FontSize="22" FontWeight="Bold"/>
-                <TextBlock Text="Dashboard personal" FontSize="12" Opacity="0.6"/>
+            <!-- Header: icono controlador + textos -->
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16" Spacing="10">
+                <Image Source="ms-appx:///Assets/Square44x44Logo.png"
+                       Width="32" Height="32"
+                       VerticalAlignment="Center"
+                       Margin="0,-4,0,0"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="GameShell" FontSize="22" FontWeight="Bold"/>
+                    <TextBlock Text="Dashboard personal" FontSize="12" Opacity="0.6"/>
+                </StackPanel>
             </StackPanel>
 
             <StackPanel Grid.Row="1" Spacing="6" Margin="0,0,0,12">
@@ -131,11 +198,7 @@
                                 Style="{StaticResource AccentButtonStyle}"
                                 IsEnabled="False" Click="BtnLaunch_Click"/>
                         <Button x:Name="BtnStopTimer" Content="■ Detener cronómetro"
-                             IsEnabled="False" CornerRadius="4" Click="BtnStopTimer_Click">
-                            <ToolTipService.ToolTip>
-                                <ToolTip Content="Solo archivos .bat"/>
-                            </ToolTipService.ToolTip>
-                        </Button>
+                                IsEnabled="False" CornerRadius="4" Click="BtnStopTimer_Click"/>
                         <TextBlock x:Name="LblStatus" VerticalAlignment="Center"
                                    Opacity="0.7" FontSize="12"/>
                     </StackPanel>
