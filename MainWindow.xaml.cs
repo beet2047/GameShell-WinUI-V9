@@ -74,7 +74,7 @@ namespace GameShell_WinUI_V9
             var hWnd = WindowNative.GetWindowHandle(this);
             var windowId = Win32Interop.GetWindowIdFromWindow(hWnd);
             var appWindow = AppWindow.GetFromWindowId(windowId);
-
+            appWindow.SetIcon("Assets/joystick.ico");
             if (appWindow.TitleBar != null)
             {
                 appWindow.TitleBar.ExtendsContentIntoTitleBar = false;
